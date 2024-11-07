@@ -205,19 +205,19 @@ class DatabaseManager:
         return ["free", "paid", "agency"]
     
         
-    def search_documents(self, query_embedding, limit=5):
-        """Search documents based on a query and return the most similar content with metadata."""
+    def search_documents(self,query_embedding, limit=5):
+        # Convert the query to an embedding
         
-
-        # Step 2: Perform the similarity search using pgvector's <-> operator
-        # Retrieve content, metadata, and other columns from embeddings and resources tables
-        sql_query = """
+        query_embedding_cast = f"ARRAY{query_embedding}::vector"  # Casting directly as vector array
+    
+        # Execute the SQL query with direct embedding formatting
+        results = self.session.execute(text(f"""
             SELECT 
-                embeddings.content, 
-                embeddings.chunk_order, 
-                embeddings.date, 
-                embeddings.summary, 
-                embeddings.cmetadata, 
+                embeddings.content,
+                embeddings.chunk_order,
+                embeddings.date,
+                embeddings.summary,
+                embeddings.cmetadata,
                 embeddings.resource_id,
                 resources.resource_name,
                 resources.path,
@@ -225,35 +225,33 @@ class DatabaseManager:
                 resources.category_id,
                 resources.sub_section_id,
                 resources.learning_type_id,
-                embeddings.embedding <-> :query_embedding AS distance
+                embeddings.embedding <-> {query_embedding_cast} AS distance
             FROM embeddings
             JOIN resources ON embeddings.resource_id = resources.id
             ORDER BY distance
             LIMIT :limit
-        """
-        results = self.session.execute(
-            text(sql_query), {'query_embedding': query_embedding, 'limit': limit}
-        ).fetchall()
+        """), {"limit": limit}).fetchall()
 
-        # Format results in a readable structure with metadata
-        return [
+        # Format the results into a list of dictionaries
+        formatted_results = [
             {
-                'content': result['content'],
-                'chunk_order': result['chunk_order'],
-                'date': result['date'],
-                'summary': result['summary'],
-                'metadata': result['cmetadata'],
-                'resource_id': result['resource_id'],
-                'resource_name': result['resource_name'],
-                'path': result['path'],
-                'permissions_allowed': result['permissions_allowed'],
-                'category_id': result['category_id'],
-                'sub_section_id': result['sub_section_id'],
-                'learning_type_id': result['learning_type_id'],
-                'distance': result['distance']
+                "content": row[0],
+                "chunk_order": row[1],
+                "date": row[2],
+                "summary": row[3],
+                "metadata": row[4],
+                "resource_id": row[5],
+                "resource_name": row[6],
+                "path": row[7],
+                "permissions_allowed": row[8],
+                "category_id": row[9],
+                "sub_section_id": row[10],
+                "learning_type_id": row[11],
+                "distance": row[12]
             }
-            for result in results
+            for row in results
         ]
+        return formatted_results
 if __name__ == "__main__":
     db_manager = DatabaseManager()
     # db_manager.drop_all_tables()

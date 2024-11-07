@@ -1,5 +1,5 @@
 import openai
-from db.db_manager import DatabaseManager
+from src.db.db_manager import DatabaseManager
 import os
 # Function to get embeddings from OpenAI
 db_manager = DatabaseManager()
