@@ -3,7 +3,7 @@ from langchain_postgres import PGVector
 from langchain_postgres.vectorstores import PGVector
 from langchain_openai import OpenAIEmbeddings
 from dotenv import load_dotenv
-import langchain
+import src.pg_vector_test.langchain as langchain
 import openai
 import os
 langchain.debug = False
