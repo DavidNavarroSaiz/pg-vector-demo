@@ -6,7 +6,11 @@ from dotenv import load_dotenv
 from moviepy.editor import VideoFileClip
 from youtube_transcript_api import YouTubeTranscriptApi
 from langchain_community.document_loaders import PyMuPDFLoader, Docx2txtLoader, TextLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
 from pptx import Presentation
+from pathlib import Path
+
 import re
 from PIL import Image
 
@@ -18,8 +22,24 @@ class UniversalDocumentProcessor:
         self.input_token_cost = 0.150 / 1_000_000
         self.output_token_cost = 0.600 / 1_000_000
         self.transcription_cost_per_minute = 0.006
+        self.text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=700,
+            chunk_overlap=50,
+        )
 
     def load_document(self, doc_path: str):
+        
+        if self.is_url(doc_path):
+            if "youtube.com" in doc_path or "youtu.be" in doc_path:
+                return self.process_youtube_video(doc_path)
+            else:
+                raise ValueError("URL provided is not a supported format.")
+            
+        doc_path = Path(doc_path).resolve()
+        
+        if not Path(doc_path).is_file():
+            raise ValueError(f"File path {doc_path} is not a valid file.")
+        doc_path = str(doc_path)
         if doc_path.endswith(".pdf"):
             loader = PyMuPDFLoader(doc_path)
         elif doc_path.endswith('.docx') or doc_path.endswith('.doc'):
@@ -32,11 +52,7 @@ class UniversalDocumentProcessor:
             return self.process_video(doc_path)
         elif doc_path.endswith(('.jpg', '.jpeg', '.png')):
             return self.process_image(doc_path)
-        elif self.is_url(doc_path):
-            if "youtube.com" in doc_path or "youtu.be" in doc_path:
-                return self.process_youtube_video(doc_path)
-            else:
-                raise ValueError("URL provided is not a supported format.")
+        
         else:
             raise ValueError("Unsupported file format")
         
@@ -45,9 +61,7 @@ class UniversalDocumentProcessor:
 
     def is_url(self, path):
         # Check if path is a URL
-        url_regex = re.compile(
-            r'^(https?://)?(www\.)?([a-zA-Z0-9_-]+)+(\.[a-zA-Z]+)+(/[\w#!:.?+=&%@!\-]*)?$'
-        )
+        url_regex = re.compile(r'^(https?://)?(www\.)?([a-zA-Z0-9_-]+)+(\.[a-zA-Z]+)+(/[\w#!:.?+=&%@!\-]*)?$')
         return re.match(url_regex, path) is not None
 
     def load_pptx(self, path):
@@ -180,9 +194,9 @@ class UniversalDocumentProcessor:
 
     def get_text_prompt(self, text):
         return f"""
-        You are an AI assistant specialized in analyzing documents for recommendation systems. Given the text provided, your task is to produce a summary that is highly relevant for recommending the document in specific contexts. Please perform the following:
+        You are an AI assistant specialized in analyzing resources for recommendation systems. Given the text provided, your task is to produce a summary that is highly relevant for recommending the resource in specific contexts. Please perform the following:
 
-        1. **Key Points and Description**: Identify and describe the core themes and essential information conveyed in the text. Focus on aspects that are uniquely valuable or distinctive.
+        1. **Key Points and Description**: Identify and describe the core themes and essential information conveyed in the resource. Focus on aspects that are uniquely valuable or distinctive.
 
         2. **Summary for Recommendation**: Provide a but contextually rich, summary that captures the document’s relevance and potential applications for various audiences.
 
@@ -236,6 +250,15 @@ class UniversalDocumentProcessor:
             "completion_tokens": completion_tokens,
             "cost": model_cost
         }
+    def get_embedding(self,text):
+        response = openai.embeddings.create(input=text, model="text-embedding-3-small")
+        return response.data[0].embedding
+    
+    def split_docs(self, docs):
+        chunks = []
+        if docs:
+            chunks = self.text_splitter.split_documents(docs)
+        return chunks
 if __name__ == "__main__":
     processor = UniversalDocumentProcessor()
     doc_path = "./iceberg english-01.jpg"  

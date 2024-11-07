@@ -1,5 +1,5 @@
 # db/models.py
-from sqlalchemy import Column, Integer, String, ForeignKey, Date, Text
+from sqlalchemy import Column, Integer, String, ForeignKey, Date, Text,Boolean,JSON
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.types import UserDefinedType
 
@@ -68,5 +68,6 @@ class Embeddings(Base):
     date = Column(Date, nullable=False)
     embedding = Column(Vector, nullable=False)
     content = Column(Text, nullable=False)
-
+    summary = Column(Boolean, nullable=True)
+    cmetadata = Column(JSON, nullable=True)
     resource = relationship("Resource", back_populates="embeddings")  # Relationship back to Resource
