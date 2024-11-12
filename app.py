@@ -23,13 +23,11 @@ tab1, tab2 = st.tabs(["Upload Document", "Get Recommendations"])
 # Upload Document tab
 with tab1:
     st.header("Upload and Process Document")
-
     uploaded_file = st.file_uploader("Upload a Document", type=["pdf", "docx", "txt", "pptx", "mp4", "jpg", "jpeg", "png"])
     youtube_url = st.text_input("Or enter a YouTube URL")
 
     # Regular expression to validate YouTube URL
-    youtube_regex = re.compile(
-        r'(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})')
+    youtube_regex = re.compile(r'(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})')
 
     # Dropdowns for metadata fields
     selected_section = st.selectbox("Select Section", list(sections.keys()))
@@ -44,9 +42,8 @@ with tab1:
             # Save the uploaded file to a temporary path
             if uploaded_file:
                 temp_dir = "temp"
-                os.makedirs(temp_dir, exist_ok=True)  # Create temp directory if it doesn't exist
+                os.makedirs(temp_dir, exist_ok=True)
                 doc_path = os.path.join(temp_dir, uploaded_file.name)
-
                 with open(doc_path, "wb") as f:
                     f.write(uploaded_file.getbuffer())
             elif youtube_regex.match(youtube_url):
@@ -70,11 +67,9 @@ with tab1:
             # Display the appropriate message based on upload status
             if "successfully" in message:
                 st.success(message)
-                
                 # Display summary and additional details
                 st.subheader("Document Summary")
                 st.write(result.get("summary", "No summary available"))
-                
                 st.subheader("Cost Details")
                 st.write(f"**GPT Model Cost:** ${result.get('cost', 0):.6f}")
 
@@ -91,10 +86,8 @@ with tab1:
                 if "audio_duration_minutes" in result:
                     st.subheader("Audio Duration")
                     st.write(f"{result['audio_duration_minutes']} minutes")
-
             else:
-                st.error(message)  # Display the error message if document already exists or summary wasn't generated
-
+                st.error(message)
         else:
             st.error("Please upload a document or enter a valid YouTube URL before submitting.")
 
@@ -108,27 +101,33 @@ with tab2:
     # Slider for the number of results to display
     result_limit = st.slider("Number of results", min_value=1, max_value=10, value=5)
 
+    # Optional filters
+    selected_resource_id = st.number_input("Resource ID (Optional)", min_value=0, step=1)
+    selected_permission_filter = st.selectbox("Permissions Allowed (Optional)", ["Any"] + permissions)
+    selected_category_filter = st.selectbox("Category (Optional)", ["Any"] + list(categories.keys()))
+    selected_subsection_filter = st.selectbox("Subsection (Optional)", ["Any"] + list(subsections.keys()))
+    selected_learning_type_filter = st.selectbox("Learning Type (Optional)", ["Any"] + list(learning_types.keys()))
+
     # Button to perform search
     if st.button("Search"):
         if search_query:
+            # Apply optional filters if selected
+            filters = {
+                "resource_id": selected_resource_id if selected_resource_id != 0 else None,
+                "permissions_allowed": selected_permission_filter if selected_permission_filter != "Any" else None,
+                "category_id": categories[selected_category_filter] if selected_category_filter != "Any" else None,
+                "sub_section_id": subsections[selected_subsection_filter] if selected_subsection_filter != "Any" else None,
+                "learning_type_id": learning_types[selected_learning_type_filter] if selected_learning_type_filter != "Any" else None
+            }
+
             # Perform search using the function in document_retriever.py
-            search_results = search_documents(search_query, limit=result_limit)
+            search_results = search_documents(search_query, limit=result_limit, **filters)
             
             # Display search results
             for idx, result in enumerate(search_results, 1):
                 st.subheader(f"Result {idx}")
                 st.write(f"**Content:** {result['content']}")
-                st.write(f"**Chunk Order:** {result['chunk_order']}")
-                st.write(f"**Date:** {result['date']}")
-                st.write(f"**Summary:** {result['summary']}")
-                st.write(f"**Metadata:** {result['metadata']}")
-                st.write(f"**Resource ID:** {result['resource_id']}")
                 st.write(f"**Resource Name:** {result['resource_name']}")
-                st.write(f"**Path:** {result['path']}")
-                st.write(f"**Permissions Allowed:** {result['permissions_allowed']}")
-                st.write(f"**Category ID:** {result['category_id']}")
-                st.write(f"**Subsection ID:** {result['sub_section_id']}")
-                st.write(f"**Learning Type ID:** {result['learning_type_id']}")
                 st.write(f"**Distance:** {result['distance']:.4f}")
                 st.write("---")  # Separator between results
         else:

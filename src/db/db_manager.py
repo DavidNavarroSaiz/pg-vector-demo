@@ -205,49 +205,60 @@ class DatabaseManager:
         return ["free", "paid", "agency"]
     
         
-    def search_documents(self,query_embedding, limit=5):
-        # Convert the query to an embedding
-        
+    def search_documents(self, query_embedding, limit=5, resource_id=None, permissions_allowed=None, category_id=None, sub_section_id=None, learning_type_id=None):
+        # Convert the query to an embedding and format it as an array for PostgreSQL
         query_embedding_cast = f"ARRAY{query_embedding}::vector"  # Casting directly as vector array
-    
-        # Execute the SQL query with direct embedding formatting
-        results = self.session.execute(text(f"""
+        
+        # Start building the SQL query with the required parts
+        sql_query = f"""
             SELECT 
                 embeddings.content,
-                embeddings.chunk_order,
-                embeddings.date,
-                embeddings.summary,
-                embeddings.cmetadata,
-                embeddings.resource_id,
                 resources.resource_name,
-                resources.path,
-                resources.permissions_allowed,
-                resources.category_id,
-                resources.sub_section_id,
-                resources.learning_type_id,
                 embeddings.embedding <-> {query_embedding_cast} AS distance
             FROM embeddings
             JOIN resources ON embeddings.resource_id = resources.id
-            ORDER BY distance
-            LIMIT :limit
-        """), {"limit": limit}).fetchall()
-
+        """
+        
+        # Add filters dynamically
+        filters = []
+        params = {"limit": limit}
+        
+        if resource_id is not None:
+            filters.append("resources.id = :resource_id")
+            params["resource_id"] = resource_id
+        
+        if permissions_allowed is not None:
+            filters.append("resources.permissions_allowed = :permissions_allowed")
+            params["permissions_allowed"] = permissions_allowed
+        
+        if category_id is not None:
+            filters.append("resources.category_id = :category_id")
+            params["category_id"] = category_id
+        
+        if sub_section_id is not None:
+            filters.append("resources.sub_section_id = :sub_section_id")
+            params["sub_section_id"] = sub_section_id
+        
+        if learning_type_id is not None:
+            filters.append("resources.learning_type_id = :learning_type_id")
+            params["learning_type_id"] = learning_type_id
+        
+        # Join all filters with AND and add them to the SQL query
+        if filters:
+            sql_query += " WHERE " + " AND ".join(filters)
+        
+        # Order by distance and apply the limit
+        sql_query += " ORDER BY distance LIMIT :limit"
+        
+        # Execute the SQL query
+        results = self.session.execute(text(sql_query), params).fetchall()
+        
         # Format the results into a list of dictionaries
         formatted_results = [
             {
                 "content": row[0],
-                "chunk_order": row[1],
-                "date": row[2],
-                "summary": row[3],
-                "metadata": row[4],
-                "resource_id": row[5],
-                "resource_name": row[6],
-                "path": row[7],
-                "permissions_allowed": row[8],
-                "category_id": row[9],
-                "sub_section_id": row[10],
-                "learning_type_id": row[11],
-                "distance": row[12]
+                "resource_name": row[1],
+                "distance": row[2]
             }
             for row in results
         ]
