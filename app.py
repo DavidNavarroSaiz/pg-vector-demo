@@ -4,19 +4,21 @@ import streamlit as st
 from src.db.db_manager import DatabaseManager
 from src.document_processor import process_and_store_document
 from src.document_retriever import search_documents
+from src.langchain_processor import LangchainProcessor
+
 import os
 import re
 
 # Initialize database manager
 db_manager = DatabaseManager()
-
+langchain_processor = LangchainProcessor()
 # Fetch options for dropdowns
 sections = db_manager.get_sections()
 subsections = db_manager.get_subsections()
 categories = db_manager.get_categories()
 learning_types = db_manager.get_learning_types()
 permissions = db_manager.get_permissions()
-
+available_sources = db_manager.get_all_resource_paths()
 # Set up two tabs
 tab1, tab2 = st.tabs(["Upload Document", "Get Recommendations"])
 
@@ -94,7 +96,14 @@ with tab1:
 # Get Recommendations tab
 with tab2:
     st.header("Get Document Recommendations")
-
+    # Display available sources at the top
+    st.subheader("Available Sources")
+    if available_sources:
+        for idx, source in enumerate(available_sources, 1):
+            st.write(f"{idx}. {source}")
+    else:
+        st.write("No sources available yet, please upload documents.")
+            
     # Input field for search query
     search_query = st.text_input("Enter search query")
 
@@ -108,27 +117,72 @@ with tab2:
     selected_subsection_filter = st.selectbox("Subsection (Optional)", ["Any"] + list(subsections.keys()))
     selected_learning_type_filter = st.selectbox("Learning Type (Optional)", ["Any"] + list(learning_types.keys()))
 
+    # Prepare filters for LangchainProcessor
+    langchain_filters = {}
+
+    if selected_resource_id != 0:
+        langchain_filters["resource_id"] = {"$eq": selected_resource_id}
+
+    if selected_permission_filter != "Any":
+        langchain_filters["permissions_allowed"] = {"$eq": selected_permission_filter}
+
+    if selected_category_filter != "Any":
+        langchain_filters["category_id"] = {"$eq": categories[selected_category_filter]}
+
+    if selected_subsection_filter != "Any":
+        langchain_filters["sub_section_id"] = {"$eq": subsections[selected_subsection_filter]}
+
+    if selected_learning_type_filter != "Any":
+        langchain_filters["learning_type_id"] = {"$eq": learning_types[selected_learning_type_filter]}
+
     # Button to perform search
     if st.button("Search"):
         if search_query:
-            # Apply optional filters if selected
-            filters = {
-                "resource_id": selected_resource_id if selected_resource_id != 0 else None,
-                "permissions_allowed": selected_permission_filter if selected_permission_filter != "Any" else None,
-                "category_id": categories[selected_category_filter] if selected_category_filter != "Any" else None,
-                "sub_section_id": subsections[selected_subsection_filter] if selected_subsection_filter != "Any" else None,
-                "learning_type_id": learning_types[selected_learning_type_filter] if selected_learning_type_filter != "Any" else None
-            }
-
             # Perform search using the function in document_retriever.py
-            search_results = search_documents(search_query, limit=result_limit, **filters)
-            
-            # Display search results
-            for idx, result in enumerate(search_results, 1):
-                st.subheader(f"Result {idx}")
-                st.write(f"**Content:** {result['content']}")
-                st.write(f"**Resource Name:** {result['resource_name']}")
-                st.write(f"**Distance:** {result['distance']:.4f}")
-                st.write("---")  # Separator between results
+            search_results = search_documents(
+                search_query,
+                limit=result_limit,
+                resource_id=selected_resource_id if selected_resource_id != 0 else None,
+                permissions_allowed=selected_permission_filter if selected_permission_filter != "Any" else None,
+                category_id=categories[selected_category_filter] if selected_category_filter != "Any" else None,
+                sub_section_id=subsections[selected_subsection_filter] if selected_subsection_filter != "Any" else None,
+                learning_type_id=learning_types[selected_learning_type_filter] if selected_learning_type_filter != "Any" else None,
+            )
+
+            # Perform search with LangchainProcessor
+            search_langchain_results = langchain_processor.similarity_search_with_scores(
+                search_query,
+                k=result_limit,
+                filter=langchain_filters
+            )
+
+            # Display search results in two columns
+            col1, col2 = st.columns(2)
+
+            # Display DocumentRetriever results
+            with col1:
+                st.subheader("DocumentRetriever Results")
+                if search_results:
+                    for idx, result in enumerate(search_results, 1):
+                        st.write(f"**Result {idx}**")
+                        st.write(f"- **Content:** {result['content']}")
+                        st.write(f"- **Resource Name:** {result['resource_name']}")
+                        st.write(f"- **Distance:** {result['distance']:.4f}")
+                        st.write("---")
+                else:
+                    st.write("No results found.")
+
+            # Display LangchainProcessor results
+            with col2:
+                st.subheader("LangchainProcessor Results")
+                if search_langchain_results:
+                    for idx, (doc, score) in enumerate(search_langchain_results, 1):
+                        st.write(f"**Result {idx}**")
+                        st.write(f"- **Content:** {doc.page_content}")
+                        st.write(f"- **Resource Name:** {doc.metadata.get('resource_name', 'N/A')}")
+                        st.write(f"- **Distance:** {score:.4f}")
+                        st.write("---")
+                else:
+                    st.write("No results found.")
         else:
             st.error("Please enter a search query.")

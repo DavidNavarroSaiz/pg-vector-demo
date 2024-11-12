@@ -116,6 +116,13 @@ class DatabaseManager:
         self.session.commit()
         print("All records deleted from all tables.")
         
+    def delete_resources_embeddings(self):
+        """Deletes all records from Embedding and Resources table deleted without dropping the table structure."""
+        self.session.query(Embeddings).delete()
+        self.session.query(Resource).delete()
+        self.session.commit()
+        print("All records from Embedding and Resources deleted")
+        
         
     # CRUD Operations
 
@@ -266,7 +273,7 @@ class DatabaseManager:
 if __name__ == "__main__":
     db_manager = DatabaseManager()
     # db_manager.drop_all_tables()
-    db_manager.delete_all_records()
+    db_manager.delete_resources_embeddings()
     # db_manager.populate_users()
     # db_manager.populate_categories()
     # db_manager.populate_sections()

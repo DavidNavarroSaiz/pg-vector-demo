@@ -17,3 +17,5 @@ def search_documents(query, limit=5, resource_id=None, permissions_allowed=None,
 
 if __name__ == "__main__":
     search_documents("diabetes in the world ")
+    
+    

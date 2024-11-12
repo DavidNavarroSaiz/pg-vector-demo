@@ -1,17 +1,18 @@
-from langchain_core.documents import Document
 from langchain_postgres import PGVector
 from langchain_postgres.vectorstores import PGVector
 from langchain_openai import OpenAIEmbeddings
 from dotenv import load_dotenv
-import src.pg_vector_test.langchain as langchain
+import src.langchain_processor as langchain_processor
+
 import openai
 import os
-langchain.debug = False
+langchain_processor.debug = False
+from uuid import uuid4
 
 load_dotenv()
 
-class PGVectorManager:
-    def __init__(self, collection_name="my_docs_test"):
+class LangchainProcessor:
+    def __init__(self, collection_name="langchain"):
         self.connection = (
             f"postgresql+psycopg://{os.getenv('DB_USERNAME')}:{os.getenv('DB_PASSWORD')}"
             f"@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
@@ -28,8 +29,8 @@ class PGVectorManager:
 
     def add_documents(self, docs):
         """Add documents to the vector store."""
-        ids = [doc.metadata["id"] for doc in docs]
-        self.vector_store.add_documents(docs, ids=ids)
+        uuids = [str(uuid4()) for _ in range(len(docs))]
+        self.vector_store.add_documents(docs, ids=uuids)
     
     def delete_document(self, doc_id):
         """Delete a document by ID."""
@@ -52,10 +53,13 @@ class PGVectorManager:
         """Display the search results."""
         for doc in results:
             print(f"* {doc.page_content} [{doc.metadata}]")
+            
+
+
 
 # Example usage:
 if __name__ == "__main__":
-    pg_manager = PGVectorManager()
+    pg_manager = LangchainProcessor()
     
     # docs = [
     #     Document(page_content="there are cats in the pond", metadata={"id": 1, "location": "pond", "topic": "animals"}),
@@ -81,5 +85,5 @@ if __name__ == "__main__":
     # pg_manager.delete_document(3)
 
     # Retrieve as RAG retriever
-    retriever = pg_manager.get_retriever(k=1)
-    print(retriever.invoke("cat"))
+    # retriever = pg_manager.get_retriever(k=1)
+    # print(retriever.invoke("cat"))

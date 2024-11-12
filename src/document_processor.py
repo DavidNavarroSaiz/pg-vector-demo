@@ -1,21 +1,28 @@
 # main.py
 from src.db.db_manager import DatabaseManager
 from src.document_loader import UniversalDocumentProcessor
+from src.langchain_processor import LangchainProcessor
 from langchain.docstore.document import Document
 from pathlib import Path
 import re
+import uuid
+
 
 def is_url(path):
     # Check if path is a URL
     url_regex = re.compile(r'^(https?://)?(www\.)?([a-zA-Z0-9_-]+)+(\.[a-zA-Z]+)+(/[\w#!:.?+=&%@!\-]*)?$')
     return re.match(url_regex, path) is not None
 
-def process_and_store_document(doc_path, section_id, sub_section_id, learning_type_id, category_id, permissions_allowed="paid"):
+def process_and_store_document(doc_path, section_id, sub_section_id, learning_type_id, category_id, permissions_allowed="paid", langchain_db=False):
+
     db_manager = DatabaseManager()
     doc_processor = UniversalDocumentProcessor()
+    langchain_processor = LangchainProcessor()
+
+
     if is_url(doc_path):
         resource_name = doc_path
-    else:        
+    else:
         # Extract the filename from the doc_path
         resource_name = Path(doc_path).name
 
@@ -58,9 +65,20 @@ def process_and_store_document(doc_path, section_id, sub_section_id, learning_ty
             # Step 4: Split the document into chunks
             chunks_docs = doc_processor.split_docs([doc])
 
+            # Prepare each chunk for LangchainProcessor with additional metadata
+            for order, chunk in enumerate(chunks_docs):
+
+                # Add the `order` and `unique_id` to chunk metadata
+                chunk.metadata['vector_order'] = order
+
+            # Initialize LangchainProcessor and add documents with metadata
+            langchain_processor.add_documents([chunk for chunk in chunks_docs])
+
             # Step 5: Add each chunk as an embedding to the database
             for order, chunk in enumerate(chunks_docs):
                 embedding = doc_processor.get_embedding(chunk.page_content)
+
+                # Add chunk to the database with its metadata and embedding
                 db_manager.add_chunk(
                     resource_id=resource_id,
                     chunk_order=order,
@@ -69,6 +87,7 @@ def process_and_store_document(doc_path, section_id, sub_section_id, learning_ty
                     summary=True,
                     cmetadata=chunk.metadata
                 )
+
 
             print("Document and chunks processed and stored successfully.")
             return f"Document '{resource_name}' uploaded and processed successfully!", result
